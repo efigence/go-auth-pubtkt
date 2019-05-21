@@ -11,13 +11,68 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
-
+// test keys
+var	privKeyDsa = `-----BEGIN DSA PRIVATE KEY-----
+MIH4AgEAAkEAoJdyccx8pVbsiNQ/xFKQI/jg/I1sG1emyhaN8or5iMkgWPAXxpjx
+/FN/lMRX140ju9KHvt/S57E90gm0zKjdfwIVALCTWWsJBvJap2u+8G+tuUlReUMX
+AkB/f3nlm5UdjMHPh4Qipv4AOYqimTaeXm7C578Tjn3obJ4rS2Sa0P5iWBomK13a
+D0QBnKTyGuCen6SnfDM1hVEFAkAcqS08U9ZGmLA888M+3Cte9uoNhLi8/dpLFAON
+FW7RZ5cPqEhXkLb9+e8SY8GTTMpMh6Whk+w8mAkQATBrSYPDAhUAl2bvSzlCaVV9
+1A9Z2X0ysyD3UIU=
+-----END DSA PRIVATE KEY-----`
+var	pubKeyDsa = `-----BEGIN PUBLIC KEY-----
+MIHwMIGoBgcqhkjOOAQBMIGcAkEAoJdyccx8pVbsiNQ/xFKQI/jg/I1sG1emyhaN
+8or5iMkgWPAXxpjx/FN/lMRX140ju9KHvt/S57E90gm0zKjdfwIVALCTWWsJBvJa
+p2u+8G+tuUlReUMXAkB/f3nlm5UdjMHPh4Qipv4AOYqimTaeXm7C578Tjn3obJ4r
+S2Sa0P5iWBomK13aD0QBnKTyGuCen6SnfDM1hVEFA0MAAkAcqS08U9ZGmLA888M+
+3Cte9uoNhLi8/dpLFAONFW7RZ5cPqEhXkLb9+e8SY8GTTMpMh6Whk+w8mAkQATBr
+SYPD
+-----END PUBLIC KEY-----`
+var	privKeyRsa = `-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAwmIv3NTou9W7vozw05YWiJ47Yd/tV3LaW0m9X/3VBCIWOR0f
+3rmaMO9FptkEZMy5U+Jk+dOi8crDhco6uhOiWxau2/botbsX0Uiw5+zk8zgTQxCj
+2uH/nRtjmWt8xUVxmOzAc0ZWN3nolLdPKJfOhQcX1W8LU02LtKPT1zCgmyu+Ztaj
+ZDgke7bIGhVMWvLCc8S/ywm4De0Wu45cezxz3TUGioyu0y1LlkkrWI2ZEe38LBiB
+YHzBkoxCmnN5Y6Sf9LmJLtfB88jyzLHlna8ci47f+Pvn+v8eImfzBQ5BKlGRTcES
+r8EX7y/e1MtkJwE07CVrPS2Nm+2bsOqKQ/6B1QIDAQABAoIBADvWGcGy0Imxu39m
+x2N6mikn/EOeuOLoegsL4f3Al2gUTh76tirLm4lgvmIj/9Q/qPUHhenZmhkwP4vZ
+usY48Qt1KhKQKQZ4N1a3N63NIJU2N8e3QZlJZHQqUDiT++6F9/gJORzDFBszrcLJ
+wtZOFMaiblXHPwc/obfTjox5bZcWEEtQgZK5eNy/fAofNJj9+iJkWh88us4l/To+
+p8JTnfureRJyzY4u5OErFNxvE1Q/spG1JNHFb0sBZfOCREwZ3noeytdiJ/zF7ydg
+uFOR5wpmctLFChv47uAyBNfM/aY0AjOuPjtyBE2XPlKlwukFNvVr/fdKr95mfXaZ
+jnjbeAECgYEA8tJOmZRCWVO1CVOt2m3EbwQ0xEjCqRvVWwPTvCn2Of+yhfYbmgsq
+ROyYcwT1RvlvQrq4KiTXn+9FNfRR1Grxc5Be59IMa9JYabTi0R62ZWQEdSkkHLx5
+CIdwTQY+6arI+o+znEOH/xInyc6z3J2GeiJufDNUZ5b4nzx02X3hyNUCgYEAzO7l
+hiehyy3J86UXPNSoSLiY/E0FbV7bnixfkMxfEX76qdJx165ZBcyWU0XQnWEEB+xE
+HMXoX2456o2cwuoN0hFME2oUkDy5JXaGk0/qZNILbfgFHCppA7Lc/LFnzTeWfdLv
+HDQhwF8BFByNKusckrTDwgzcLeYD4q5jM2u2VQECgYBkhfHqHHl3N3Mb4Ft5sLWA
+bBJYK/MCRTaHTkdKf2iizBsg4Ci/Fd4y2GuoOiY8cqi/zELPl574Y/qYAoQZ1wgM
+GnlfqRJhVJwrbqnzfq5tvQEna5e6mb/VaxRvnqVO4NgA+pqVl1NmoiJ8pijJrSDt
+0PFCU5GerN5SNZn+K+Hb3QKBgDkxStkf4mWDx+K5ZjzR1I1HB1sSW7tkR8Ji++C7
+SKTnXSlb0+2veKTHrgRbbZceZjOX2oJ1MR7A8mTlVKSJEYZY0XRxnH+MktdDttcR
+7IZqoEn2d+aeZ2Ri3I2hLSj2pIdFAPpMCkdXvENSnIsnxnei/yb+08vzb44pwQGu
+w9oBAoGBALmm14ch7Mekq0ShydWZLTGiTOaw2ehvJy4ox+iPZvy3MkHYTXCG+532
+jBskP/WAlzpqfLUyY4/6l9TAflVKTiC9HPXd51Z5O8EXERLedNO9vZ8DFsf5KcuI
+3ltEVzR2j6xCge+UXwZ3hAsmg8IlKozWeucaERMWTuVuAPvoklT0
+-----END RSA PRIVATE KEY-----`
+var	pubKeyRsa = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwmIv3NTou9W7vozw05YW
+iJ47Yd/tV3LaW0m9X/3VBCIWOR0f3rmaMO9FptkEZMy5U+Jk+dOi8crDhco6uhOi
+Wxau2/botbsX0Uiw5+zk8zgTQxCj2uH/nRtjmWt8xUVxmOzAc0ZWN3nolLdPKJfO
+hQcX1W8LU02LtKPT1zCgmyu+ZtajZDgke7bIGhVMWvLCc8S/ywm4De0Wu45cezxz
+3TUGioyu0y1LlkkrWI2ZEe38LBiBYHzBkoxCmnN5Y6Sf9LmJLtfB88jyzLHlna8c
+i47f+Pvn+v8eImfzBQ5BKlGRTcESr8EX7y/e1MtkJwE07CVrPS2Nm+2bsOqKQ/6B
+1QIDAQAB
+-----END PUBLIC KEY-----`
 var _ = Describe("Pubtkt", func() {
 
 	Context("RawToTicket", func() {
 		It("Should give correct ticket when it's not encrypted", func() {
 			ticketRaw := "uid=myuser;validuntil=1;tokens=token1,token2;sig=mysignature"
-			auth, err := NewAuthPubTkt(AuthPubTktOptions{TKTAuthPublicKey: "fake", TKTAuthCookieName: "fake", TKTAuthHeader: []string{"fake"}})
+			auth, err := NewAuthPubTkt(AuthPubTktOptions{
+				TKTAuthPublicKey: pubKeyRsa,
+				TKTAuthCookieName: "fake",
+				TKTAuthHeader: []string{"fake"}})
 			Expect(err).ToNot(HaveOccurred())
 
 			ticket, err := auth.RawToTicket(ticketRaw)
@@ -34,7 +89,7 @@ var _ = Describe("Pubtkt", func() {
 			ticketRaw := "NgJVDZTchnQ3CpQWRhLHExefvSPkFyLIaCyvnNy+XB/BHu+ah1ojR2ZBrALb0fIqKKdIpnVQ9OBuJl8MXa/NZw=="
 			passPhrase := "mysuperpassphrase"
 			auth, _ := NewAuthPubTkt(AuthPubTktOptions{
-				TKTAuthPublicKey:           "fake",
+				TKTAuthPublicKey:           pubKeyRsa,
 				TKTAuthCookieName:          "fake",
 				TKTAuthHeader:              []string{"fake"},
 				TKTCypherTicketsWithPasswd: passPhrase,
@@ -55,7 +110,7 @@ var _ = Describe("Pubtkt", func() {
 		It("Should give correct ticket from cookie when it's set", func() {
 			ticketRaw := "uid=myuser;validuntil=1;tokens=token1,token2;sig=mysignature"
 			auth, err := NewAuthPubTkt(AuthPubTktOptions{
-				TKTAuthPublicKey:  "fake",
+				TKTAuthPublicKey:  pubKeyRsa,
 				TKTAuthHeader:     []string{"cookie"},
 				TKTAuthCookieName: "pubtkt",
 			})
@@ -77,7 +132,7 @@ var _ = Describe("Pubtkt", func() {
 		It("Should give correct ticket from header if it's set when it's set", func() {
 			ticketRaw := "uid=myuser;validuntil=1;tokens=token1,token2;sig=mysignature"
 			auth, err := NewAuthPubTkt(AuthPubTktOptions{
-				TKTAuthPublicKey:  "fake",
+				TKTAuthPublicKey:  pubKeyRsa,
 				TKTAuthCookieName: "fake",
 				TKTAuthHeader:     []string{"x-authpubtkt"},
 			})
@@ -99,7 +154,7 @@ var _ = Describe("Pubtkt", func() {
 		It("Should give correct ticket from cookie by cascading if no header is set", func() {
 			ticketRaw := "uid=myuser;validuntil=1;tokens=token1,token2;sig=mysignature"
 			auth, err := NewAuthPubTkt(AuthPubTktOptions{
-				TKTAuthPublicKey:  "fake",
+				TKTAuthPublicKey:  pubKeyRsa,
 				TKTAuthHeader:     []string{"x-authpubtkt", "cookie"},
 				TKTAuthCookieName: "pubtkt",
 			})
@@ -120,7 +175,7 @@ var _ = Describe("Pubtkt", func() {
 		})
 		It("Should give an error if no header or cookie are set", func() {
 			auth, err := NewAuthPubTkt(AuthPubTktOptions{
-				TKTAuthPublicKey:  "fake",
+				TKTAuthPublicKey:  pubKeyRsa,
 				TKTAuthHeader:     []string{"x-authpubtkt", "cookie"},
 				TKTAuthCookieName: "pubtkt",
 			})
@@ -391,6 +446,51 @@ StOB7bD9meH5/rOy
 				_, isType := err.(ErrWrongIp)
 				Expect(isType).Should(BeTrue())
 			})
+		})
+	})
+	Context("SignTicket", func() {
+		ticket := Ticket{
+			Uid:        "myuser",
+			Validuntil: time.Unix(1, 0),
+			Tokens:     []string{"token1", "token2"},
+			RawData:    "uid=myuser;validuntil=1;tokens=token1,token2",
+			Sig:        "mysignature",
+		}
+		It("Should sign ticket with DSA key",func() {
+			dsaAuth, err := NewAuthPubTkt(AuthPubTktOptions{
+				TKTAuthPublicKey:  pubKeyDsa,
+				TKTAuthPrivateKey: privKeyDsa,
+				TKTCheckIpEnabled: true,
+				TKTAuthRequireSSL: false,
+				TKTAuthToken:      []string{"token1"},
+				TKTAuthHeader:     []string{"cookie"},
+				TKTAuthCookieName: "pubtkt",
+		})
+			Expect(err).ToNot(HaveOccurred())
+			sig, sigErr := dsaAuth.GenerateSignature(&ticket)
+			Expect(sigErr).ToNot(HaveOccurred())
+			signedTicket, rtterr := dsaAuth.RawToTicket(sig)
+			Expect(rtterr).ToNot(HaveOccurred())
+			verifyErr := dsaAuth.VerifyTicket(signedTicket,"127.0.0.1")
+			Expect(verifyErr).ToNot(HaveOccurred())
+		})
+		It("Should sign ticket with RSA key",func() {
+			rsaAuth, err := NewAuthPubTkt(AuthPubTktOptions{
+				TKTAuthPublicKey:  pubKeyRsa,
+				TKTAuthPrivateKey: privKeyRsa,
+				TKTCheckIpEnabled: true,
+				TKTAuthRequireSSL: false,
+				TKTAuthToken:      []string{"token1"},
+				TKTAuthHeader:     []string{"cookie"},
+				TKTAuthCookieName: "pubtkt",
+			})
+			Expect(err).ToNot(HaveOccurred())
+			sig, sigErr := rsaAuth.GenerateSignature(&ticket)
+			Expect(sigErr).ToNot(HaveOccurred())
+			signedTicket, rtterr := rsaAuth.RawToTicket(sig)
+			Expect(rtterr).ToNot(HaveOccurred())
+			verifyErr := rsaAuth.VerifyTicket(signedTicket,"127.0.0.1")
+			Expect(verifyErr).ToNot(HaveOccurred())
 		})
 	})
 })

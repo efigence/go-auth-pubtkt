@@ -1,6 +1,11 @@
 package pubtkt
 
 import (
+	"crypto/dsa"
+	"crypto/ecdsa"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"strings"
 	"time"
@@ -10,7 +15,10 @@ type AuthPubTktOptions struct {
 	// A DSA or RSA public key in PEM format
 	// This public key will be used to verify ticket signatures
 	TKTAuthPublicKey string
-	// String indicating what digest algorithm to use when verifying ticket signatures
+	// A DSA or RSA private key in PEM format
+	// This private key will be used for signing tickets
+	TKTAuthPrivateKey string
+	// String indicating what digest algorithm to use when signing/verifying ticket signatures
 	// Valid values are SHA1, DSS1, SHA224, SHA256, SHA384, and SHA512
 	// If not specified, the old defaults of SHA1 (for an RSA public key) or DSS1 (for a DSA public key) will be used.
 	TKTAuthDigest string
@@ -69,6 +77,28 @@ type AuthPubTktOptions struct {
 	// If true and TKTCheckIpEnabled is true it will check ip from header X-Forwarded-For instead client remote ip
 	// default: false
 	TKTCheckXForwardedIp bool
+}
+
+// detect type of pubkey set in options
+func (o AuthPubTktOptions) DetectPubkeyType() (keytype string, err error) {
+	block, remainder := pem.Decode([]byte(o.TKTAuthPublicKey))
+	if block == nil {
+		return "", fmt.Errorf("could not decode PEM-encoded key [%s]",string(remainder))
+	}
+	cert, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
+	switch cert.(type) {
+	case *rsa.PublicKey:
+		return "rsa", nil
+	case *dsa.PublicKey:
+		return "dsa", nil
+	case *ecdsa.PublicKey:
+		return "ecdsa",nil
+	default:
+		return "", fmt.Errorf("unkown key type: %T %+v",cert,cert)
+	}
 }
 type Ticket struct {
 	Uid         string    `mapstructure:"uid"`

@@ -2,11 +2,15 @@ package pubtkt
 
 import (
 	"crypto/dsa"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
+	"golang.org/x/crypto/ssh"
+	"math/big"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,15 +26,20 @@ type AuthPubTkt interface {
 	RawToTicket(ticketStr string) (*Ticket, error)
 	// Verify a ticket with signature, expiration, token (if set) and ip (against the provided ip and if TKTCheckIpEnabled option is true)
 	VerifyTicket(ticket *Ticket, clientIp string) error
+	// Sign a ticket
+	GenerateSignature(ticket *Ticket)(signature string, err error)
 }
 type AuthPubTktImpl struct {
 	options AuthPubTktOptions
 	openSSL *OpenSSL
+	rsaPrivKey *rsa.PrivateKey
+	dsaPrivKey *dsa.PrivateKey
 }
 
 var TimeNowFunc = func() time.Time {
 	return time.Now()
 }
+
 
 func NewAuthPubTkt(options AuthPubTktOptions) (AuthPubTkt, error) {
 	if options.TKTAuthPublicKey == "" {
@@ -42,7 +51,24 @@ func NewAuthPubTkt(options AuthPubTktOptions) (AuthPubTkt, error) {
 	if options.TKTAuthHeader == nil || len(options.TKTAuthHeader) == 0 {
 		return nil, fmt.Errorf("TKTAuthHeader must be set")
 	}
-	return &AuthPubTktImpl{options, NewOpenSSL()}, nil
+	if options.TKTAuthDigest == "" {
+		pubkeyType, err := options.DetectPubkeyType()
+		if err != nil {
+			return nil, err
+		}
+		// those are mod_auth_pubtkt defaults
+		switch pubkeyType {
+		case "rsa":
+			options.TKTAuthDigest = "sha1"
+		case "dsa":
+			options.TKTAuthDigest = "dss1"
+		default:
+			return nil, fmt.Errorf("pubkey type %s not supported", pubkeyType)
+		}
+	} else {
+		options.TKTAuthDigest = strings.ToLower(options.TKTAuthDigest)
+	}
+	return &AuthPubTktImpl{options: options, openSSL: NewOpenSSL()}, nil
 }
 func (a AuthPubTktImpl) VerifyFromRequest(req *http.Request) (*Ticket, error) {
 	if req.TLS == nil && a.options.TKTAuthRequireSSL {
@@ -153,14 +179,19 @@ func (a AuthPubTktImpl) verifyExpiration(ticket *Ticket) error {
 	return nil
 }
 func (a AuthPubTktImpl) verifySignature(ticket *Ticket) error {
-	authDigest := strings.ToLower(a.options.TKTAuthDigest)
-	if a.options.TKTAuthDigest == "" || authDigest == "dss1" {
+	switch a.options.TKTAuthDigest {
+	// no digest defined and it can't be guessed for pubkey, try both
+	case "":
 		err := a.verifyDsaSignature(ticket)
-		if err == nil || authDigest == "dss1" {
-			return err
+		if err == nil {
+			return nil
 		}
+		return a.verifyRsaSignature(ticket)
+	case "dss1":
+		return a.verifyDsaSignature(ticket)
+	default:
+		return a.verifyRsaSignature(ticket)
 	}
-	return a.verifyRsaSignature(ticket)
 }
 func (a AuthPubTktImpl) verifyDsaSignature(ticket *Ticket) error {
 	block, _ := pem.Decode([]byte(a.options.TKTAuthPublicKey))
@@ -179,7 +210,10 @@ func (a AuthPubTktImpl) verifyDsaSignature(ticket *Ticket) error {
 	certif := x509.Certificate{
 		PublicKey: pub,
 	}
-	signature, _ := base64.StdEncoding.DecodeString(ticket.Sig)
+	signature, err := base64.StdEncoding.DecodeString(ticket.Sig)
+	if err != nil {
+		return NewErrSigNotValid(err)
+	}
 	err = certif.CheckSignature(x509.DSAWithSHA1, []byte(ticket.DataString()), signature)
 	if err != nil {
 		return NewErrSigNotValid(err)
@@ -201,9 +235,6 @@ func (a AuthPubTktImpl) verifyRsaSignature(ticket *Ticket) error {
 	}
 	ds, _ := base64.StdEncoding.DecodeString(ticket.Sig)
 	authDigest := a.options.TKTAuthDigest
-	if authDigest == "" {
-		authDigest = "sha1"
-	}
 	hash, cryptoHash, err := FindHash(authDigest)
 	if err != nil {
 		return fmt.Errorf("Error when finding hash: %s", err.Error())
@@ -226,4 +257,118 @@ func (a AuthPubTktImpl) decrypt(encTkt string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+func (a AuthPubTktImpl) GenerateSignature(ticket *Ticket) (string, error) {
+	if len(a.options.TKTAuthPrivateKey) == 0 {
+		return "", errors.New("configuration is lacking TKTAuthPrivateKey, cannot sign")
+	}
+	if strings.Contains(a.options.TKTAuthDigest,"sha") { return a.signRsa(ticket)}
+	if a.options.TKTAuthDigest == "dss1" { return a.signDsa(ticket) }
+	return "", fmt.Errorf("signature type %s unsupported", a.options.TKTAuthDigest)
+}
+func (a AuthPubTktImpl) signRsa(ticket *Ticket) (string, error) {
+	hash, htype, err := FindHash(a.options.TKTAuthDigest)
+	if err != nil {
+		return "", fmt.Errorf("error finding hash: %s",err)
+	}
+
+	tokenData := ticket.DataString()
+	hash.Write([]byte(tokenData))
+	sum := hash.Sum(nil)
+	_ = sum
+	if a.rsaPrivKey == nil {
+		if !strings.Contains(a.options.TKTAuthPrivateKey,"RSA PRIVATE") {
+			return "", fmt.Errorf("TKTAuthPrivateKey does not contain PEM-encoded RSA key")
+		}
+		block, _ := pem.Decode([]byte(a.options.TKTAuthPrivateKey))
+		if block == nil {
+			// do not return content the remainder here as that might potentially expose privkey
+			return "", fmt.Errorf("could not decode PEM-encoded TKTAuthPrivateKey")
+		}
+		cert, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return "", fmt.Errorf("error parsing private key: %s", err)
+		}
+		a.rsaPrivKey = cert
+		a.rsaPrivKey.Precompute()
+	}
+	signature,err := rsa.SignPKCS1v15(rand.Reader, a.rsaPrivKey,htype, sum)
+
+	if err != nil {
+		return "", err
+	}
+	return tokenData + ";sig=" + base64.StdEncoding.EncodeToString(signature),nil
+}
+
+type asnDSA struct {
+	R *big.Int `asn1:"application,tag:1,implicit,optional"`
+	S *big.Int `asn1:"application,tag:1,implicit,optional"`
+}
+func (a AuthPubTktImpl) signDsa(ticket *Ticket) (string, error) {
+	hash, _ , err := FindHash("sha1")
+	if err != nil {
+		return "", fmt.Errorf("error finding hash: %s",err)
+	}
+
+	tokenData := ticket.DataString()
+	hash.Write([]byte(tokenData))
+	sum := hash.Sum(nil)
+	_ = sum
+	if a.dsaPrivKey == nil {
+		if !strings.Contains(a.options.TKTAuthPrivateKey,"DSA PRIVATE") {
+			return "", fmt.Errorf("TKTAuthPrivateKey does not contain PEM-encoded DSA key")
+		}
+		key, err := ssh.ParseRawPrivateKey([]byte(a.options.TKTAuthPrivateKey))
+		if err != nil {
+			return "", fmt.Errorf("couldn't parse DSA key: %s", err)
+		}
+		switch v := key.(type) {
+		case *dsa.PrivateKey:
+			a.dsaPrivKey = v
+		default:
+			return "", fmt.Errorf("expected DSA key, got: %T", v)
+		}
+	}
+
+	r,s,err := dsa.Sign(rand.Reader, a.dsaPrivKey,sum)
+	if err != nil {
+		return "", fmt.Errorf("error while DSA signing: %s", err)
+	}
+	sig := PointsToDER(r,s)
+	return tokenData + ";sig=" + base64.StdEncoding.EncodeToString(sig),nil
+}
+
+
+func asnIntegerPrefix(data []byte)  []byte {
+	// ASN encodes zero as just a single byte
+	if len(data) == 0 {
+		data = []byte{0}
+	}
+	// and encode numbers between -128-127 also as single byte.
+	if data[0] & 128 != 0 {
+		paddedBytes := make([]byte, len(data)+1)
+		copy(paddedBytes[1:], data)
+		data = paddedBytes
+	}
+	return data
+}
+
+// Convert an ECDSA signature (points R and S) to a byte array using ASN.1 DER encoding.
+// This is a port of Bitcore's Key.rs2DER method.
+func PointsToDER(r, s *big.Int) []byte {
+	// Ensure MSB doesn't break big endian encoding in DER sigs
+
+	rb := asnIntegerPrefix(r.Bytes())
+	sb := asnIntegerPrefix(s.Bytes())
+
+	// DER encoding:
+	// 0x30 + z + 0x02 + len(rb) + rb + 0x02 + len(sb) + sb
+	length := 2 + len(rb) + 2 + len(sb)
+
+	der := append([]byte{0x30, byte(length), 0x02, byte(len(rb))}, rb...)
+	der = append(der, 0x02, byte(len(sb)))
+	der = append(der, sb...)
+
+	return der
 }

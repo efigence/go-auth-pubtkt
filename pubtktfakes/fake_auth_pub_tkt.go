@@ -296,4 +296,8 @@ func (fake *FakeAuthPubTkt) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
+func (fake *FakeAuthPubTkt) GenerateSignature(ticket *pubtkt.Ticket) (string,error) {
+	return "",nil
+}
+
 var _ pubtkt.AuthPubTkt = new(FakeAuthPubTkt)

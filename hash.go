@@ -193,7 +193,6 @@ func (x *ecbDecrypter) CryptBlocks(dst, src []byte) {
 }
 
 func FindHash(hashStr string) (hash.Hash, crypto.Hash, error) {
-
 	switch hashMethod(hashStr) {
 	case Hsha1:
 		return sha1.New(), crypto.SHA1, nil
