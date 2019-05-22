@@ -46,10 +46,10 @@ func NewAuthPubTkt(options AuthPubTktOptions) (AuthPubTkt, error) {
 		return nil, fmt.Errorf("TKTAuthPublicKey must be set")
 	}
 	if options.TKTAuthCookieName == "" {
-		return nil, fmt.Errorf("TKTAuthCookieName must be set")
+		options.TKTAuthCookieName = "auth_pubtkt"
 	}
 	if options.TKTAuthHeader == nil || len(options.TKTAuthHeader) == 0 {
-		return nil, fmt.Errorf("TKTAuthHeader must be set")
+		options.TKTAuthHeader = []string{"cookie"}
 	}
 	if options.TKTAuthDigest == "" {
 		pubkeyType, err := options.DetectPubkeyType()
