@@ -301,10 +301,7 @@ func (a AuthPubTktImpl) signRsa(ticket *Ticket) (string, error) {
 	return tokenData + ";sig=" + base64.StdEncoding.EncodeToString(signature),nil
 }
 
-type asnDSA struct {
-	R *big.Int `asn1:"application,tag:1,implicit,optional"`
-	S *big.Int `asn1:"application,tag:1,implicit,optional"`
-}
+
 func (a AuthPubTktImpl) signDsa(ticket *Ticket) (string, error) {
 	hash, _ , err := FindHash("sha1")
 	if err != nil {
